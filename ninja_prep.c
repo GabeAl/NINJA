@@ -27,8 +27,8 @@ int cmp(const void *v1, const void *v2) {
 
 int main( int argc, char *argv[] )
 {
-	const int V_97[20] = {0,0, 0,0, 0,0, 0,0, 2263,4051, 0,0, 0,0, 0,0, 0,0, 0,0};
-						//null, V1,  V2,  V3,   V4,      V5,   V6,  V7,  V8,  V9
+	const int V_97[20] = {0,0, 0,0, 0,0, 1901,2231, 2263,4051, 0,0, 0,0, 0,0, 0,0, 0,0};
+						//null, V1,  V2,  V3,         V4,      V5,   V6,  V7,  V8,  V9
 	FILE *in_seqs, *out_seqs, *out_DB, *out_map;
 	char *inmode = "rb", *outmode = "wb"; 
 	int doSort = 0, V = 0, argS = 1; 
@@ -37,8 +37,8 @@ int main( int argc, char *argv[] )
 		printf( "\nNINJA Is Not Just Another OTU Picker: preparation program. Usage:\n");
 		printf( "ninja_prep [V4] [sort] in_refs.fa out_DB.fa out_map.db\n" );
 		printf( "\nCONTROL PARAMETERS (optional):\n");
-		printf( "V4: if specified, produce V4 database only (faster with V4 primers)\n");
-		printf( "  Note: V4 region extraction assumes aligned gg_13_8 97_otus as input\n");
+		printf( "V[X]: if specified, produce V[X] database only (X = 3 or 4)\n");
+		printf( "  Note: V3 and V4 region extraction assumes gg_13_8 97_otus input\n");
 		printf( "sort: if specified, database is rearranged lexicographically (faster)\n");
 		printf( "\nINPUT PARAMETERS:\n");
 		printf( "in_refs.fa: the (aligned) references in fasta format\n");
@@ -49,6 +49,7 @@ int main( int argc, char *argv[] )
     }
 	if (argc > 4) {
 		if (!strcmp(argv[1],"V4") || !strcmp(argv[2],"V4")) { V = 4; ++argS; }
+		if (!strcmp(argv[1],"V3") || !strcmp(argv[2],"V3")) { V = 3; ++argS; }
 		if (!strcmp(argv[1],"sort") || !strcmp(argv[2],"sort")) { doSort = 1; ++argS; }
 	}
 	
@@ -67,9 +68,9 @@ int main( int argc, char *argv[] )
 	unsigned int otu;
 	char line[250000]; // assumption: no one sequence will be over 250k in length
 	
-	fscanf(in_seqs, ">%d\n%s\n", &otu, line); // grab first line 
-	int line_len = strlen(line);
-	printf("Line length is: %d (otu here: %d)\n", line_len, otu);
+	//fscanf(in_seqs, ">%d\n%s\n", &otu, line); // grab first line 
+	//int line_len = strlen(line);
+	//printf("Line length is: %d (otu here: %d)\n", line_len, otu);
 	int lines = 0, dashes = 0;
 	
 	/// Find file length, then number of lines in it
@@ -88,8 +89,8 @@ int main( int argc, char *argv[] )
 		if (*++stringP == '\n') { ++lines; inSeq ^= 1;} 
 		else if (inSeq) { if (*stringP == '-') ++dashes; else ++seqChars; }
 	} while (--sz);
-	printf("Total lines: %d, dashes: %d, strChars: %d\n", lines, dashes, seqChars);
 	int numEntries = lines/2, nE;
+	printf("Number of refs: %d\n", numEntries);
 	
 	char *seqBuf = malloc(10000), *seqBufP = seqBuf,
 		**strArr = malloc(numEntries * sizeof(char *)), **strArrP = strArr;
@@ -105,6 +106,7 @@ int main( int argc, char *argv[] )
 	stringP = string - sizeof(char);
 	int V_count, V_beg = V_97[V*2], rng;
 	int V_rng = V_97[V*2+1] - V_beg;
+	//printf("V_beg %d, V_end %d, range is %d\n", V_beg, V_97[V*2 + 1], V_rng);
 	while (*++stringP) { 
 		if (*stringP == '\n') { 
 			if (!inSeq) { // we're finishing the int bit and prepping for character line
@@ -117,14 +119,16 @@ int main( int argc, char *argv[] )
 				rng = 0;
 				// fast-forward to the correct character in the stream
 				if (V) { V_count = V_beg; do ++stringP; while (--V_count); }
+				//printf("\n");
 			}
 			else {
 				*ixPtr++ = bufCharNum;
 				memset(seqBufP,'\0',1);
-				*strArrP = malloc(bufCharNum+1);
+				*strArrP = malloc(bufCharNum+1); 
 #ifdef DEBUG
 				if (!*strArrP) { printf("pre-sequence memory depleted!\n"); return 1; }
 #endif
+				
 				strcpy(*strArrP, seqBuf);
 				//*(*strArrP+++bufCharNum)=0; // LR >*+++ notation
 				memset(*strArrP+++bufCharNum,'\0',1); 
@@ -135,9 +139,11 @@ int main( int argc, char *argv[] )
 		else if (*stringP == '-') { if (V) ++rng; }
 		else if (inSeq) { 
 			*seqBufP++ = *stringP;
+			//printf("%c,%u ",*stringP,rng+bufCharNum);
+			//printf("%c",*stringP);
 			++curCharNum; ++bufCharNum;
 			// fast-forward to end if V_bound reached
-			if (V && (rng + bufCharNum == V_rng)) 
+			if (V && (rng + bufCharNum >= V_rng)) 
 				{ while (*++stringP != '\n'); --stringP; continue; }
 		}
 		else *atoiBufPtr++ = *stringP;
@@ -161,6 +167,7 @@ int main( int argc, char *argv[] )
 	}
 	else {
 		// sort the sequences from an array of their pointers
+		printf("Reference DB will be sorted.\n");
 		char ***parray = malloc(numEntries * sizeof(char **)), ***pp = parray;
 		if (!parray) { printf("Out of post-memory.\n"); return 1; }
 		strArrP = strArr; 
