@@ -21,6 +21,22 @@
 #include <stdlib.h>
 #include <time.h>
 #define ARRSZ 16
+#define NINJA_VER "0.6b"
+#define SHOW_USAGE() {\
+	printf( "\nNINJA Is Not Just Another OTU Picker: parser program. Usage:\n");\
+	printf( "ninja_parse in_sampDB.db in_aligns.txt in_map.db [in_taxmap.txt] out_otutable.txt\n" );\
+	printf("\nINPUT PARAMETERS:\n");\
+	printf( "in_sampDB: the sample DB file produced by ninja_filter\n"); \
+	printf( "in_aligns: the bowtie2 (headerless, match-only) short read alignment\n");\
+	printf( "in_NINJAdb: the (included) sequence index -> OTU database\n");\
+	printf( "in_taxmap (optional): the (included) sorted OTU -> taxon mapping file\n");\
+	printf( "\n" "OUTPUT PARAMETERS:\n");\
+	printf( "out_otutable: name of the new output otu_table file created upon running\n");\
+	printf( "--legacy (optional): writes table in legacy text format (default: biom)\n");\
+	return 1; \
+}
+
+
 
 inline int ycmp(st1p, st2p) register const char *st1p, *st2p; { 
 	while (*st1p && *st2p && *st1p++ == *st2p++); 
@@ -175,20 +191,15 @@ int main ( int argc, char *argv[] )
 	clock_t start;
 	start = clock();
 	
-    if ( argc != 5 && argc != 6 ) /* argc should be 4-5 for correct execution */
-    {
-        printf( "\nNINJA Is Not Just Another OTU Picker: parser program. Usage:\n");
-		printf( "ninja_parse in_sampDB.db in_aligns.txt in_map.db [in_taxmap.txt] out_otutable.txt\n" );
-		printf("\nINPUT PARAMETERS:\n");
-		printf( "in_sampDB: the sample DB file produced by ninja_filter\n"); 
-		printf( "in_aligns: the bowtie2 (headerless, match-only) short read alignment\n");
-		printf( "in_NINJAdb: the (included) sequence index -> OTU database\n");
-		printf( "in_taxmap (optional): the (included) sorted OTU -> taxon mapping file\n");
-		printf( "\n" "OUTPUT PARAMETERS:\n");
-		printf( "out_otutable: name of the new output otu_table file created upon running\n");
-		return 1;
-    }
-    int doTaxmap = argc == 6 ?: 0;
+    if ( argc < 5 || argc > 7 ) SHOW_USAGE();
+    int argx = argc, legacy = 0;
+	if (!strcmp(argv[argc-1],"--legacy")) {
+		printf("legacy output mode toggled.\n");
+		legacy = 1;
+		--argx;
+	}
+	
+    int doTaxmap = argx == 6 ?: 0;
 	// We assume argv[n] are filenames to open, in the order specified.
 	FILE *mfp = fopen( argv[1], "rb" );
 	FILE *ifp = fopen( argv[2], "rb" ), *ifi = fopen( argv[3], "rb"), 
@@ -199,9 +210,10 @@ int main ( int argc, char *argv[] )
 	if ( !mfp || !ifp || !ifi || !ofp || (doTaxmap && itx == 0))
 	{
 		fprintf(stderr, "Could not open one or more files.\n");
-		printf("Usage: \n");
+		/* printf("Usage: \n");
 		printf( "ninja_parse in_sampDB.db in_aligns.txt in_map.db [in_taxmap.txt] out_otutable.txt\n" );
-		return 1;
+		return 1; */
+		SHOW_USAGE();
 	}
 	unsigned *OtuList, *ixList,
 		ilines = parse_unsigned_map(ifi, ',', &ixList, &OtuList);
@@ -260,33 +272,103 @@ int main ( int argc, char *argv[] )
 		} while (*++curSamp);
 		while (*++cix != '\n');
 	}
-	//return 1;
-	// Write headers in OTU table format
-	fprintf(ofp, "#OTU ID");
-	char **SampP = SampDBdump - 1;
-	unsigned *OtuP = OtuList - 1;
-	cnt = numSamps; do fprintf(ofp,"\t%s",*++SampP); while (--cnt);
-	if (doTaxmap) fprintf(ofp,"\tTaxonomy");
-	unsigned i, *row, *rowP;
-		
 #ifdef PROFILE
 	printf("->Time for matrix generation: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
-		
-		for (i = 0; i < ilines; i++) {
-			//screen if any numbers in this row
-			row = OtuTable + i*numSamps; rowP = row;
-			cnt = numSamps; do if (*rowP++) break; while (--cnt);
-			++OtuP;
-			if (cnt) {
-				fprintf(ofp, "\n%u", *OtuP);
-				rowP = row; cnt = numSamps; 
-				do fprintf(ofp, "\t%u", *rowP++); while (--cnt);
-				if (doTaxmap) 
-					fprintf(ofp,"\t%s", 
-						*(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + i), blines)));
+
+	/// Legacy table write
+	if (legacy) {
+		// Write headers in OTU table format
+		fprintf(ofp, "#OTU ID");
+		char **SampP = SampDBdump - 1;
+		unsigned *OtuP = OtuList - 1;
+		cnt = numSamps; do fprintf(ofp,"\t%s",*++SampP); while (--cnt);
+		if (doTaxmap) fprintf(ofp,"\tTaxonomy");
+		unsigned i, *row, *rowP;
+			
+
+			
+			for (i = 0; i < ilines; i++) {
+				//screen if any numbers in this row
+				row = OtuTable + i*numSamps; rowP = row;
+				cnt = numSamps; do if (*rowP++) break; while (--cnt);
+				++OtuP;
+				if (cnt) {
+					fprintf(ofp, "\n%u", *OtuP);
+					rowP = row; cnt = numSamps; 
+					do fprintf(ofp, "\t%u", *rowP++); while (--cnt);
+					if (doTaxmap) 
+						fprintf(ofp,"\t%s", 
+							*(OtuMap_taxa + uWBS(OtuMap_otus, *(OtuList + i), blines)));
+				}
 			}
 		}
+		else { // BIOM format
+			time_t t = time(NULL);
+			struct tm tm = *localtime(&t);
+			fprintf(ofp, "{\n\"id\":null,\n\"format\": \"NINJA-BIOM " NINJA_VER "(BIOM 1.0)\",\n"
+			"\"format_url\": \"http://biom-format.org/documentation/format_versions/biom-1.0.html\",\n"
+			"\"type\": \"OTU table\",\n\"generated_by\": \"NINJA " NINJA_VER "\",\n"
+			"\"date\": \"%d-%d-%dT%d:%d:%d\",\n", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, 
+			tm.tm_hour, tm.tm_min, tm.tm_sec);
+			//struct x = {id:x, yp:y};
+			
+			// Write the rows in the biom format
+			fprintf(ofp, "\"rows\":[");
+			unsigned *OtuP = OtuList - 1;
+			int ix = ilines; do { // display the "row" lines
+				fprintf(ofp,"\n\t{\"id\":\"%u\", \"metadata\":",*++OtuP);
+				if (doTaxmap) {
+					fprintf(ofp,"{\"taxonomy\":[");
+					char *taxon = *(OtuMap_taxa + uWBS(OtuMap_otus, *OtuP, blines)) - 2, *tP;
+					int i; for (i = 0; i < 6; i++) { // there are 6 ;'s to consider for 7 taxa
+						tP = taxon + 2;
+						while (*++taxon != ';'); *taxon = '\0';
+						fprintf(ofp, "\"%s\", ", tP);
+						*taxon = ';';
+					}
+					fprintf(ofp,"\"%s\"]}}", taxon + 2);
+					
+				}
+				else fprintf(ofp,"null}");
+				if (ix > 1) fprintf(ofp,",");
+			} while (--ix);
+			fprintf(ofp, "\n],\n");
+			
+			// Write sparse columns
+			char **SampP = SampDBdump - 1;
+			fprintf(ofp, "\"columns\": [");
+			ix = numSamps; do {
+				fprintf(ofp, "\n\t{\"id\":\"%s\", \"metadata\":null}", *++SampP);
+				if (ix > 1) fprintf(ofp,",");
+			} while (--ix);
+			fprintf(ofp, "\n],\n");
+			
+			// Write structure, data
+			fprintf(ofp,"\"matrix_type\": \"sparse\",\n\"matrix_element_type\": \"int\",\n"
+				"\"shape\": [%u, %u],\n", ilines, numSamps);
+			fprintf(ofp,"\"data\":[");
+			// loop thru all points
+			unsigned i, j; // *row, *rowP;
+			//*OtuP = OtuList - 1;
+			for (i = 0; i < ilines; i++) for (j = 0; j < numSamps; j++) {
+				//screen if any numbers in this row
+				//row = OtuTable + i*numSamps; rowP = row;
+				//ix = numSamps; do if (*rowP++) break; while (--ix);
+				//++OtuP;
+				
+				/* if (ix) {
+					fprintf(ofp, "\n%u", *OtuP);
+					rowP = row; ix = numSamps; 
+					do fprintf(ofp, "\t%u", *rowP++); while (--ix);
+				} */
+				if (OtuTable[i * numSamps + j]) 
+					fprintf(ofp, "[%u,%u,%u],\n\t", i, j, OtuTable[i * numSamps + j]);
+			}
+			fseek(ofp, -3, SEEK_CUR);
+			fprintf(ofp,"]\n}");
+		}
+		
 
 #ifdef PROFILE
 	printf("->Time for filtering and table write: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
