@@ -93,7 +93,18 @@ int cmp(const void *v1, const void *v2) {
 	return xcmp(i1,i2);
 }
 
-inline int binSearchS(char *thisS, unsigned range); 
+inline int binSearchS(char **SmpDD, char *thisS, unsigned range) {
+	unsigned binL = 0, binH = range - 1;  
+	int binM, cp;
+	while (binL <= binH) {
+		binM = binL + ((binH - binL) >> 1);
+		cp = xcmp(thisS, SmpDD[binM]);
+		if (cp > 0) binL = binM + 1;
+		else if (!cp) return binM;
+		else binH = binM - 1;
+	}
+	return -1;
+}
 
 int main( int argc, char *argv[] )
 {
@@ -247,19 +258,6 @@ int main( int argc, char *argv[] )
 	printf("->Short read sample prep: %f\n", ((double) (clock() - start)) / CLOCKS_PER_SEC); start = clock();
 #endif
 
-	inline int binSearchS(char *thisS, unsigned range) {
-		unsigned binL = 0, binH = range - 1;  
-		int binM, cp;
-		while (binL <= binH) {
-			binM = binL + ((binH - binL) >> 1);
-			cp = xcmp(thisS, SmpDD[binM]);
-			if (cp > 0) binL = binM + 1;
-			else if (!cp) return binM;
-			else binH = binM - 1;
-		}
-		return -1;
-	}
-
 	copies = 1; dupes = 0; 
 	nE = numEntries; 
 	pp = parray; 
@@ -267,7 +265,7 @@ int main( int argc, char *argv[] )
 	unsigned rix = 0;
 	int six;
 	while (nE--) {
-		++*(Counts + (six=binSearchS(*(smpArr + (*pp - seqArr)), numUniq))); // specific count
+		++*(Counts + (six=binSearchS(SmpDD, *(smpArr + (*pp - seqArr)), numUniq))); // specific count
 		if (nE && !xcmp(**pp, **(pp + 1))) { // Dupe! 
 			++copies; ++dupes;  // general counts
 		} 
