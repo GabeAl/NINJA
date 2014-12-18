@@ -8,6 +8,7 @@ This is a new ultra-high-speed OTU picking pipeline.
 Here's the rundown. 
 
 1. Make reference DB by providing a set of OTUs (i.e. f/greengenes) and optional taxa file (also f/greengenes). This is done with ninja_prep.
+2. bowtie2-build-s -o3 ninjaDB.fasta Ninja97
 
 2. Run the resulting output fasta through bowtie2's indexer, generating the bw index.
 
