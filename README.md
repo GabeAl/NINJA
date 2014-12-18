@@ -1,7 +1,7 @@
 NINJA
 =====
 
-NINJA Is Not Just Another Reference Sequence Matcher
+NINJA Is Not Just Another Short Read Mapper
 
 This is a new ultra-high-speed OTU picking pipeline. 
 
