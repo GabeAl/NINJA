@@ -19,7 +19,7 @@ If you used the precomputed indices, you can start here.
 
 Align your sequences with bt2. "reads.fna" are your reads, and "align.txt" is your output alignment. You'll feed align.txt to ninja_parse in step 
 
-bowtie2-align-s --no-head --no-unal -o3 -p4 -f reads.fna -x Ninja97 -S align.txt --mp "1,1" --rdg "1,1" --rfg "1,1" --score-min "L,0,-.03" -k 1 --norc --fast
+bowtie2-align-s --no-head --no-unal -p4 -f reads.fna -x Ninja97 -S align.txt --mp "1,1" --rdg "1,1" --rfg "1,1" --score-min "L,0,-.03" -k 1 --norc --fast
 
 5. If you did step 3, run ninja_parse on bowtie2's sam output. Otherwise run ninja_parse_s on it.
 
