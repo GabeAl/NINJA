@@ -148,7 +148,7 @@ int main( int argc, char *argv[] )
 		printf("Match id: %f\n\n", alignRQ(refSeq, qSeq, refLen, qLen, 0, 1));
 		printf("Align id: %f\n__________________\n", alignRQ(refSeq, qSeq, refLen, qLen, 1, 1));
 	}
-	else if (argc == 4) { // Assume -i SEQ1 SEQ2 direct use-case
+	else if (argc == 4) { // Assume REF QUERY outfile.txt use-case
 		FILE *outs = fopen(argv[3], "ab");
 		if (!outs) { puts("Invalid output file. Is it open?\n"); return 1; }
 		float score = alignRQ(argv[1], argv[2], strlen(argv[1]), strlen(argv[2]), 0, 0);
